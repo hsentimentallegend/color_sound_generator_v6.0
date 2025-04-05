@@ -1,11 +1,11 @@
 import streamlit as st
 import numpy as np
 from PIL import Image
-import sounddevice as sd
-from scipy import signal
 import colorsys
 from scipy.io import wavfile
 import io
+from scipy import signal
+import base64
 
 st.title("Color Sound Generator with Mode Switch")
 
@@ -174,34 +174,25 @@ if img_file is not None:
             base_sound = base_sound[::factor]
             base_sound = np.repeat(base_sound, factor)[:len(t)]
 
-    if 'mixed_sound' not in st.session_state:
-        st.session_state.mixed_sound = base_sound
-    st.session_state.mixed_sound = base_sound * master_volume
+    mixed_sound = base_sound * master_volume
 
-    # Playback controls
-    if 'playing' not in st.session_state:
-        st.session_state.playing = False
+    # Generate WAV file
+    wav_buffer = io.BytesIO()
+    wavfile.write(wav_buffer, fs, (mixed_sound * 32767).astype(np.int16))
+    wav_buffer.seek(0)
+    wav_bytes = wav_buffer.getvalue()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Play Sound"):
-            if not st.session_state.playing:
-                st.session_state.playing = True
-                sd.play(st.session_state.mixed_sound, fs)
-    with col2:
-        if st.button("Stop"):
-            st.session_state.playing = False
-            sd.stop()
-
-    if st.session_state.playing:
-        st.write(f"Playing... ({mode_display})")
-        sd.stop()
-        sd.play(st.session_state.mixed_sound, fs)
+    # Base64 encode for browser playback
+    wav_base64 = base64.b64encode(wav_bytes).decode('utf-8')
+    audio_html = f"""
+    <audio controls>
+        <source src="data:audio/wav;base64,{wav_base64}" type="audio/wav">
+        Your browser does not support the audio element.
+    </audio>
+    """
+    st.markdown(audio_html, unsafe_allow_html=True)
 
     # WAV download
-    wav_buffer = io.BytesIO()
-    wavfile.write(wav_buffer, fs, (st.session_state.mixed_sound * 32767).astype(np.int16))
-    wav_buffer.seek(0)
     st.download_button(
         label="Download Sound as WAV",
         data=wav_buffer,
@@ -220,9 +211,11 @@ if img_file is not None:
         mime="image/png"
     )
 
-    # Credits in sidebar
+    # Credits in sidebar with image
     st.sidebar.markdown("---")
     st.sidebar.write("Created by Hiroshi Mehata")
     st.sidebar.write("Extension app for Color Cleanser Exhibition")
     st.sidebar.markdown("[Website](https://www.mehatasentimentallegend.com/the-story-of-color-cleanser)")
-    st.sidebar.image("c-001.jpg", caption="Color Cleanser", use_column_width=True)
+    st.sidebar.image("https://via.placeholder.com/150", caption="Color Cleanser Logo", use_column_width=True)
+    # Replace with actual image URL when available
+    # st.sidebar.image("https://raw.githubusercontent.com/yourusername/yourrepo/main/logo.png", caption="Color Cleanser Logo", use_column_width=True)
